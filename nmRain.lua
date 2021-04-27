@@ -1,5 +1,5 @@
 -- nmRain
--- 0.0.5 @NightMachines
+-- 0.0.6 @NightMachines
 -- llllllll.co/t/nmrain/
 --
 -- a weird delay for
@@ -12,7 +12,7 @@
 -- E3: cloud altitude
 
 
-
+-- _norns.screen_export_png("/home/we/dust/<FILENAME>.png")
 -- norns.script.load("code/nmRain/nmRain.lua")
 local version = "0.0.5"
 
@@ -24,10 +24,9 @@ local devices = {}
 
 local voice = 1
 local vState = {0,0,0,0,0,0} -- 0=idle, 1=recording, 2=playing
-local vStartPos = {0.0,2.0,4.0,6.0,8.0,10.0}
+local vStartPos = {0.0,4.0,8.0,12.0,16.0,20.0}
 local vPos = {0.0,0.0,0.0,0.0,0.0,0.0}
 local vLenInUse = {1.0,1.0,1.0,1.0,1.0,1.0}
-
 
 function init()
   for id,device in pairs(midi.vports) do
@@ -40,18 +39,18 @@ function init()
   params:add_separator()
   params:add{type = "number", id = "dryWet", name = "Dry/Wet", min=0, max=10, default = 5, wrap = false, action=function(x) audio.level_monitor(((x/10)-1)*-1) end}
   params:add{type = "number", id = "rain", name = "Make It Rain", min=0, max=1, default = 0, wrap = false, action=function(x) if x==1 then makeItRain() end end}
-  params:add{type = "number", id = "selVoice", name = "Voice Selection", min = 1, max = 6, default = 1, wrap = false}
-  params:add{type = "number", id = "rndLen", name = "Random Movement", min = 0, max = 1, default = 0, wrap = false}
+  params:add{type = "number", id = "selVoice", name = "Choose Cloud", min = 1, max = 6, default = 1, wrap = false}
+  params:add{type = "number", id = "rndLen", name = "Make It Windy", min = 0, max = 1, default = 0, wrap = false}
   params:add_separator()
-  params:add_control("vLen1","Voice 1 Length", controlspec.new(0.0,2.0,"lin",0.1,1.0,"",0.05,false))
-  params:add_control("vLen2","Voice 2 Length", controlspec.new(0.0,2.0,"lin",0.1,1.0,"",0.05,false))
-  params:add_control("vLen3","Voice 3 Length", controlspec.new(0.0,2.0,"lin",0.1,1.0,"",0.05,false))
-  params:add_control("vLen4","Voice 4 Length", controlspec.new(0.0,2.0,"lin",0.1,1.0,"",0.05,false))
-  params:add_control("vLen5","Voice 5 Length", controlspec.new(0.0,2.0,"lin",0.1,1.0,"",0.05,false))
-  params:add_control("vLen6","Voice 6 Length", controlspec.new(0.0,2.0,"lin",0.1,1.0,"",0.05,false))
+  params:add_control("vLen1","Cloud 1 Altitude", controlspec.new(0.1,4.1,"lin",0.1,1.0,"",0.025,false))
+  params:add_control("vLen2","Cloud 2 Altitude", controlspec.new(0.1,4.1,"lin",0.1,1.0,"",0.025,false))
+  params:add_control("vLen3","Cloud 3 Altitude", controlspec.new(0.1,4.1,"lin",0.1,1.0,"",0.025,false))
+  params:add_control("vLen4","Cloud 4 Altitude", controlspec.new(0.1,4.1,"lin",0.1,1.0,"",0.025,false))
+  params:add_control("vLen5","Cloud 5 Altitude", controlspec.new(0.1,4.1,"lin",0.1,1.0,"",0.025,false))
+  params:add_control("vLen6","Cloud 6 Altitude", controlspec.new(0.1,4.1,"lin",0.1,1.0,"",0.025,false))
   
   softcut.buffer_clear()
-  softcut.buffer_clear_region_channel(1,0,15)
+  softcut.buffer_clear_region_channel(1,0,25)
   audio.level_adc_cut(1)
 
   audio.level_monitor(0.5)
@@ -70,7 +69,7 @@ function init()
     softcut.rate(i,1.0)
     softcut.loop(i,0)
     softcut.loop_start(i,vStartPos[i])
-    softcut.loop_end(i,vStartPos[i]+2)
+    softcut.loop_end(i,vStartPos[i]+4)
     softcut.fade_time(i,0.0)
     softcut.recpre_slew_time(i,0.01)
     softcut.pre_level(i,0.5)
@@ -199,20 +198,20 @@ function redraw()
   screen.line_width(1)
 
     screen.level(4)
-    screen.move(0,50)
-    screen.line(128,50)
+    screen.move(0,52)
+    screen.line(128,52)
     screen.stroke()
     screen.level(2)
-    screen.move(0,53)
-    screen.line(128,53)
+    screen.move(0,55)
+    screen.line(128,55)
     screen.stroke()
     screen.level(1)
-    screen.move(0,56)
-    screen.line(128,56)
+    screen.move(0,58)
+    screen.line(128,58)
     screen.stroke()
     screen.level(1)
-    screen.move(0,59)
-    screen.line(128,59)
+    screen.move(0,61)
+    screen.line(128,61)
     screen.stroke()
     
   for i=1,6 do
@@ -243,7 +242,7 @@ end
 
 function drawCloud(n,v)
   local x = getX(n)
-  local y = round(-v*15)+36
+  local y = round(-v*8)+36
   screen.circle(x-5,y+2,4)
   screen.fill()
   screen.circle(x,y,5)
@@ -270,7 +269,7 @@ function drawCloud(n,v)
 end
 
 function drawRain(n,v,offset)
-  local o = round(-offset*15)+45
+  local o = round(-offset*8)+45
   local y = o + ((50-o)*(v/offset))
   local x = getX(n)-((y/10)*params:get("rndLen"))
   
@@ -278,13 +277,13 @@ function drawRain(n,v,offset)
   screen.fill()
   screen.circle(x,y,2)
   screen.fill()
-  if y>47 then
+  if y>48 then
     drawSplash(n,y)
   end
 end
 
 function drawSplash(n,m)
-  local y = 50
+  local y = 52
   local s = 4
   local x = getX(n)-((y/10)*params:get("rndLen"))
   
@@ -298,7 +297,7 @@ end
 
 
 function drawRipple(n,p,len)
-  local y = 50
+  local y = 52
   local x = getX(n)-((y/10)*params:get("rndLen"))
 
   

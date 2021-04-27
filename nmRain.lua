@@ -1,5 +1,5 @@
 -- nmRain
--- 0.0.6 @NightMachines
+-- 0.0.7 @NightMachines
 -- llllllll.co/t/nmrain/
 --
 -- a weird delay for
@@ -152,20 +152,38 @@ end
 function makeItRain()
   
   while true do
-    local i = math.random(1,6)
-    if vState[i]==0 then
-      voice=i
-      if params:get("rndLen")==1 then
-        params:delta("vLen"..voice, (math.random(0,2)-1))
-        softcut.rate(voice,(math.random(1,10)/10))
-      else
-        softcut.rate(voice,1.0)
+    local freeStates = {}  
+    local counter = 0
+    
+    for c=1,6 do
+      if vState[c]==0 then
+        counter = counter+1
+        freeStates[counter] = c
       end
-      vRec(voice)
+    end
+    --print("states: "..#freeStates)
+    
+    if #freeStates>0 then
+      
+      local i = math.random(1,#freeStates)
+      --print(i)
+      
+      if vState[freeStates[i]]==0 then
+        voice=freeStates[i]
+
+        if params:get("rndLen")==1 then
+          params:delta("vLen"..voice, (math.random(0,2)-1))
+          softcut.rate(voice,(math.random(1,10)/10))
+        else
+          softcut.rate(voice,1.0)
+        end
+        vRec(voice)
+        break
+      end
+    else
       break
     end
-  end
-  
+  end  
 end
 
 

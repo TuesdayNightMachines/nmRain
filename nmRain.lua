@@ -1,9 +1,10 @@
 -- nmRain
--- 0.0.7 @NightMachines
+-- 0.0.8 @NightMachines
 -- llllllll.co/t/nmrain/
 --
--- a weird delay for
--- external audio signals
+-- a weird stereo delay
+-- for external audio or
+-- tape signals
 --
 -- E1: choose cloud
 -- K2: make it rain
@@ -24,9 +25,11 @@ local devices = {}
 
 local voice = 1 -- selected voice/cloud 1-6
 local vState = {0,0,0,0,0,0} -- 0=idle, 1=recording, 2=playing
-local vStartPos = {0.0,4.0,8.0,12.0,16.0,20.0}
+local vStartPos = {0,4,8,12,16,20}
 local vPos = {0.0,0.0,0.0,0.0,0.0,0.0}
 local vLenInUse = {1.0,1.0,1.0,1.0,1.0,1.0}
+local vRates = {1,1,1,1,1,1}
+local overload = 0
 
 function init()
   for id,device in pairs(midi.vports) do
@@ -37,17 +40,17 @@ function init()
   params:add{type = "option", id = "midi_input", name = "Midi Input", options = devices, default = 1, action=set_midi_input}
   
   params:add_separator()
-  params:add{type = "number", id = "dryWet", name = "Dry/Wet", min=0, max=10, default = 5, wrap = false, action=function(x) audio.level_monitor(((x/10)-1)*-1) end}
-  params:add{type = "number", id = "rain", name = "Make It Rain", min=0, max=1, default = 0, wrap = false, action=function(x) if x==1 then makeItRain() end end}
   params:add{type = "number", id = "selVoice", name = "Choose Cloud", min = 1, max = 6, default = 1, wrap = false}
+  params:add{type = "number", id = "rain", name = "Make It Rain", min=0, max=1, default = 0, wrap = false, action=function(x) if x==1 then makeItRain() end end}
   params:add{type = "number", id = "rndLen", name = "Make It Windy", min = 0, max = 1, default = 0, wrap = false}
+  params:add{type = "number", id = "dryWet", name = "Dry/Wet", min=0, max=10, default = 5, wrap = false, action=function(x) audio.level_monitor(((x/10)-1)*-1) end}
   params:add_separator()
-  params:add_control("vLen1","Cloud 1 Altitude", controlspec.new(0.1,4.1,"lin",0.1,1.0,"",0.025,false))
-  params:add_control("vLen2","Cloud 2 Altitude", controlspec.new(0.1,4.1,"lin",0.1,1.0,"",0.025,false))
-  params:add_control("vLen3","Cloud 3 Altitude", controlspec.new(0.1,4.1,"lin",0.1,1.0,"",0.025,false))
-  params:add_control("vLen4","Cloud 4 Altitude", controlspec.new(0.1,4.1,"lin",0.1,1.0,"",0.025,false))
-  params:add_control("vLen5","Cloud 5 Altitude", controlspec.new(0.1,4.1,"lin",0.1,1.0,"",0.025,false))
-  params:add_control("vLen6","Cloud 6 Altitude", controlspec.new(0.1,4.1,"lin",0.1,1.0,"",0.025,false))
+  params:add_control("vLen1","Cloud 1 Altitude", controlspec.new(0.1,4,"lin",0.1,1.0,"",0.026,false))
+  params:add_control("vLen2","Cloud 2 Altitude", controlspec.new(0.1,4,"lin",0.1,1.0,"",0.026,false))
+  params:add_control("vLen3","Cloud 3 Altitude", controlspec.new(0.1,4,"lin",0.1,1.0,"",0.026,false))
+  params:add_control("vLen4","Cloud 4 Altitude", controlspec.new(0.1,4,"lin",0.1,1.0,"",0.026,false))
+  params:add_control("vLen5","Cloud 5 Altitude", controlspec.new(0.1,4,"lin",0.1,1.0,"",0.026,false))
+  params:add_control("vLen6","Cloud 6 Altitude", controlspec.new(0.1,4,"lin",0.1,1.0,"",0.026,false))
   
   softcut.buffer_clear()
   softcut.buffer_clear_region_channel(1,0,25)
@@ -66,12 +69,12 @@ function init()
     softcut.enable(i,1)
     softcut.buffer(i,1)
     softcut.level(i,((params:get("dryWet")/10)-1)*-1)
-    softcut.rate(i,1.0)
+    softcut.rate(i,vRates[i])
     softcut.loop(i,0)
     softcut.loop_start(i,vStartPos[i])
     softcut.loop_end(i,vStartPos[i]+4)
     softcut.fade_time(i,0.0)
-    softcut.recpre_slew_time(i,0.01)
+    softcut.recpre_slew_time(i,0)
     softcut.pre_level(i,0.5)
     softcut.rec_level(i,1.0)
     softcut.position(i,vStartPos[i])
@@ -95,7 +98,7 @@ function updatePos(v,p) -- v = voice, p = position
   vPos[v]=round(p*100)/100
   
   if vState[v]==2 then -- if playing
-    softcut.rate(v,1-(vPos[v]-vStartPos[v])/4) -- decrease rate/pitch as playback progresses
+    softcut.rate(v,1*(1+((vPos[v]-vStartPos[v])/vLenInUse[v])*-0.5) ) -- decrease rate/pitch as playback progresses
     
     if (vPos[v]-vStartPos[v])/vLenInUse[v] <= 0.5 then
       softcut.level(v,(params:get("dryWet")/10) * (((vPos[v]-vStartPos[v])/vLenInUse[v])*2))--() -- fade in
@@ -105,11 +108,16 @@ function updatePos(v,p) -- v = voice, p = position
 
   end
   
+
   if vPos[v]>=vLenInUse[v]+vStartPos[v] then -- when play- or recordhead reaches the end
     if vState[v]==1 then -- if recording: stop rec and play back recording
       vPlay(v)
     elseif vState[v]==2 then -- it playing: stop
       vStop(v)
+        if overload==1 then
+          params:set("rain",0)
+          params:set("rain",1)
+        end
     end
   end
 end
@@ -172,6 +180,7 @@ function makeItRain() -- the engine
     end
     
     if #freeStates>0 then -- if there are idle voices/clouds, pick one randomly to record and play next
+      overload=0
       local i = math.random(1,#freeStates)
       
       if vState[freeStates[i]]==0 then
@@ -179,7 +188,8 @@ function makeItRain() -- the engine
 
         if params:get("rndLen")==1 then -- if randomizer/wind is on, randomly change playback rate and sample length/cloud altitude
           params:delta("vLen"..voice, (math.random(0,2)-1))
-          softcut.rate(voice,(math.random(1,10)/10))
+          vRates[voice] = math.random(5,10)/10
+          softcut.rate(voice, vRates[voice])
         else
           softcut.rate(voice,1.0)
         end
@@ -187,6 +197,7 @@ function makeItRain() -- the engine
         break
       end
     else
+      overload=1
       break
     end
   end  

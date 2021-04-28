@@ -14,7 +14,7 @@
 
 -- _norns.screen_export_png("/home/we/dust/<FILENAME>.png")
 -- norns.script.load("code/nmRain/nmRain.lua")
-local version = "0.0.5"
+
 
 --adjust encoder settigns to your liking
 --norns.enc.sens(0,2)
@@ -22,7 +22,7 @@ norns.enc.accel(0,false)
 
 local devices = {}
 
-local voice = 1
+local voice = 1 -- selected voice/cloud 1-6
 local vState = {0,0,0,0,0,0} -- 0=idle, 1=recording, 2=playing
 local vStartPos = {0.0,4.0,8.0,12.0,16.0,20.0}
 local vPos = {0.0,0.0,0.0,0.0,0.0,0.0}
@@ -91,12 +91,11 @@ end
 
 
 
-
 function updatePos(v,p) -- v = voice, p = position
   vPos[v]=round(p*100)/100
   
-  if vState[v]==2 then
-    softcut.rate(v,1-(vPos[v]-vStartPos[v])/4)
+  if vState[v]==2 then -- if playing
+    softcut.rate(v,1-(vPos[v]-vStartPos[v])/4) -- decrease rate/pitch as playback progresses
     
     if (vPos[v]-vStartPos[v])/vLenInUse[v] <= 0.5 then
       softcut.level(v,(params:get("dryWet")/10) * (((vPos[v]-vStartPos[v])/vLenInUse[v])*2))--() -- fade in
@@ -106,16 +105,18 @@ function updatePos(v,p) -- v = voice, p = position
 
   end
   
-  if vPos[v]>=vLenInUse[v]+vStartPos[v] then
-    if vState[v]==1 then -- when recording: stop rec and play
+  if vPos[v]>=vLenInUse[v]+vStartPos[v] then -- when play- or recordhead reaches the end
+    if vState[v]==1 then -- if recording: stop rec and play back recording
       vPlay(v)
-    elseif vState[v]==2 then -- when playing: stop
+    elseif vState[v]==2 then -- it playing: stop
       vStop(v)
     end
   end
 end
 
-function vRec(v)
+
+
+function vRec(v) -- record function, v = voice/cloud
   vLenInUse[v] = params:get("vLen"..v)
   softcut.play(v,0)
   vState[v]=1
@@ -125,7 +126,9 @@ function vRec(v)
   softcut.rec(v,1)
 end
 
-function vPlay(v) 
+
+
+function vPlay(v) -- playback function, v = voice/cloud
   vState[v]=2
   softcut.play(v,0)
   softcut.rec(v,0)
@@ -138,40 +141,43 @@ function vPlay(v)
   end
 end
 
-function vStop(v)
+
+
+function vStop(v) -- stop function, v = voice/cloud
   vState[v]=0
   softcut.rate(v,1.0)
   softcut.play(v,0)
   softcut.position(v,vStartPos[v])
 end
 
-function dryWet(x)
+
+
+function dryWet(x) -- adjust input monitor level on param change
   audio.level_monitor(x/10)
 end
 
-function makeItRain()
+
+
+function makeItRain() -- the engine
   
   while true do
     local freeStates = {}  
     local counter = 0
     
-    for c=1,6 do
+    for c=1,6 do -- check which voices/clouds are idle and put them into an array
       if vState[c]==0 then
         counter = counter+1
         freeStates[counter] = c
       end
     end
-    --print("states: "..#freeStates)
     
-    if #freeStates>0 then
-      
+    if #freeStates>0 then -- if there are idle voices/clouds, pick one randomly to record and play next
       local i = math.random(1,#freeStates)
-      --print(i)
       
       if vState[freeStates[i]]==0 then
         voice=freeStates[i]
 
-        if params:get("rndLen")==1 then
+        if params:get("rndLen")==1 then -- if randomizer/wind is on, randomly change playback rate and sample length/cloud altitude
           params:delta("vLen"..voice, (math.random(0,2)-1))
           softcut.rate(voice,(math.random(1,10)/10))
         else
@@ -215,36 +221,44 @@ function redraw()
   screen.clear()
   screen.line_width(1)
 
-    screen.level(4)
-    screen.move(0,52)
-    screen.line(128,52)
-    screen.stroke()
-    screen.level(2)
-    screen.move(0,55)
-    screen.line(128,55)
-    screen.stroke()
-    screen.level(1)
-    screen.move(0,58)
-    screen.line(128,58)
-    screen.stroke()
-    screen.level(1)
-    screen.move(0,61)
-    screen.line(128,61)
-    screen.stroke()
-    
+  -- draw black background
+  screen.level(0)
+  screen.move(0,0)
+  screen.rect(0,0,128,64)
+  screen.fill()
+  
+  -- draw the bottom lines
+  screen.level(4)
+  screen.move(0,52)
+  screen.line(128,52)
+  screen.stroke()
+  screen.level(2)
+  screen.move(0,55)
+  screen.line(128,55)
+  screen.stroke()
+  screen.level(1)
+  screen.move(0,58)
+  screen.line(128,58)
+  screen.stroke()
+  screen.level(1)
+  screen.move(0,61)
+  screen.line(128,61)
+  screen.stroke()
+  
+  -- draw clouds
   for i=1,6 do
-    if params:get("selVoice")==i then
+    if params:get("selVoice")==i then -- draw selected cloud brighter
       screen.level(15)
     else
       screen.level(4)
     end
     drawCloud(i,params:get("vLen"..i))
 
-    
-    if vState[i]==1 then
+    if vState[i]==1 then -- if recording then draw raindrop
       screen.level(15)
       drawRain(i,vPos[i]-vStartPos[i],vLenInUse[i])
-    elseif vState[i]==2 then
+      
+    elseif vState[i]==2 then --if playing, draw ripple on ground
       drawRipple(i,vPos[i]-vStartPos[i],vLenInUse[i])
     end
     
@@ -254,11 +268,14 @@ function redraw()
 end
 
 
-function getX(n)
+
+function getX(n) -- returns x coordinate for clouds/raindrops/ripples, for for conveniece while testing the UI drawing
   return 12+(n-1)*21
 end
 
-function drawCloud(n,v)
+
+
+function drawCloud(n,v) -- draw a nice cloud, n = voice, v = vertical position
   local x = getX(n)
   local y = round(-v*8)+36
   screen.circle(x-5,y+2,4)
@@ -286,7 +303,9 @@ function drawCloud(n,v)
   screen.stroke()
 end
 
-function drawRain(n,v,offset)
+
+
+function drawRain(n,v,offset) -- draw a raindrop, n = voice, v = vertical position, offset = cloud altitude
   local o = round(-offset*8)+45
   local y = o + ((50-o)*(v/offset))
   local x = getX(n)-((y/10)*params:get("rndLen"))
@@ -300,7 +319,9 @@ function drawRain(n,v,offset)
   end
 end
 
-function drawSplash(n,m)
+
+
+function drawSplash(n,m) -- draw a tiny splash, n = voice, v = vertical position
   local y = 52
   local s = 4
   local x = getX(n)-((y/10)*params:get("rndLen"))
@@ -314,7 +335,8 @@ function drawSplash(n,m)
 end
 
 
-function drawRipple(n,p,len)
+
+function drawRipple(n,p,len) -- draw a ripple, n = voice, p = playhead position, len = sample length
   local y = 52
   local x = getX(n)-((y/10)*params:get("rndLen"))
 
@@ -335,7 +357,8 @@ function drawRipple(n,p,len)
 end
 
 
-re = metro.init()
+
+re = metro.init() -- screen refresh
 re.time = 1.0 / 15
 re.event = function()
   redraw()
@@ -343,6 +366,7 @@ end
 re:start()
 
 
+-- MIDI Stuff
 function set_midi_input(x)
   update_midi()
 end
@@ -360,6 +384,7 @@ function midi_input_event(data)
   -- do something if you want
 end
 
+-- custom round function (not neccessary)
 function round(n)
   return n % 1 >= 0.5 and math.ceil(n) or math.floor(n)
 end

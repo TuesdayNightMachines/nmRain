@@ -1,5 +1,5 @@
 -- nmRain
--- 0.0.8 @NightMachines
+-- 1.0.0 @NightMachines
 -- llllllll.co/t/nmrain/
 --
 -- a weird stereo delay
@@ -19,7 +19,7 @@
 
 --adjust encoder settigns to your liking
 --norns.enc.sens(0,2)
-norns.enc.accel(0,false)
+--norns.enc.accel(0,false)
 
 local devices = {}
 
@@ -58,12 +58,12 @@ function init()
 
   audio.level_monitor(0.5)
   
-  softcut.pan(1,1)
-  softcut.pan(2,0.6)
-  softcut.pan(3,0.2)
-  softcut.pan(4,-0.2)
-  softcut.pan(5,-0.6)
-  softcut.pan(6,-1)
+  softcut.pan(1,-1)
+  softcut.pan(2,-0.6)
+  softcut.pan(3,-0.2)
+  softcut.pan(4,0.2)
+  softcut.pan(5,0.6)
+  softcut.pan(6,1)
   
   for i=1,6 do
     softcut.enable(i,1)
